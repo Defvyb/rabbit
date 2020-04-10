@@ -40,6 +40,7 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/error/en.h>
 
+
 namespace RABBIT_NAMESPACE {
 
 #define RABBIT_TAG_DEF(name, id) \
@@ -552,6 +553,14 @@ public:
     , alloc_(alloc)
   {}
 
+  basic_value_ref(native_value_type* value, allocator_type* alloc, const string_ref_type& name)
+    : value_(value)
+    , alloc_(alloc)
+  {
+     m_valName.assign(name.data(),name.size());
+  }
+
+
   template <typename OtherTraits>
   basic_value_ref(const basic_value_ref<OtherTraits>& other)
     : value_(other.get_native_value_pointer())
@@ -721,14 +730,14 @@ public:
       value_->AddMember(rapidjson::StringRef(name.data(), name.length()), null, *alloc_);
     }
 
-    return value_ref_type(&((*value_)[name.data()]), alloc_);
+    return value_ref_type(&((*value_)[name.data()]), alloc_, name);
   }
 
   const_value_ref_type at(const string_ref_type& name) const
   {
     type_check<object_tag>();
     if (!has(name))
-      throw std::out_of_range("not found");
+      throw std::out_of_range(std::string("not found ") + std::string(name));
     return const_value_ref_type(&((*value_)[name.data()]), alloc_);
   }
 
@@ -893,15 +902,64 @@ public:
   }
 
 private:
+
+  mutable std::string m_valName;
+
   template <typename T>
   void type_check() const
   {
     if (!is<T>())
     {
+        std::string type = "unknown";
+        switch(which())
+        {
+            case rapidjson::kNullType:
+            {
+                type = "kNullType";
+                break;
+            }
+            case rapidjson::kFalseType:
+            {
+                type = "kFalseType";
+                break;
+            }
+            case rapidjson::kTrueType:
+            {
+                type = "kTrueType";
+                break;
+            }
+            case rapidjson::kObjectType:
+            {
+                type = "kObjectType";
+                break;
+            }
+            case rapidjson::kArrayType:
+            {
+                type = "kArrayType";
+                break;
+            }
+            case rapidjson::kStringType:
+            {
+                type = "kStringType";
+                break;
+            }
+            case rapidjson::kNumberType:
+            {
+                type = "kNumberType";
+                break;
+            }
+        default:
+            type = "unknown";
+        }
       std::stringstream ss;
-      ss << "value is not ";
+      ss << "value";
+      if(!m_valName.empty())
+      {
+          ss <<" "<< m_valName;
+      }
+      ss <<" is not ";
       ss << details::type_name<T>();
-      ss << " (which is " << which() << ")";
+      ss << " (which is " << type << ")";
       throw type_mismatch(ss.str());
     }
   }
@@ -935,7 +993,7 @@ struct basic_value_base
 };
 
 template <typename Traits, typename DefaultTag = null_tag>
-class basic_value 
+class basic_value
   : private basic_value_base<Traits>
   , public basic_value_ref<Traits>
 {
